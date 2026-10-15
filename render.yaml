@@ -4,7 +4,7 @@ services:
     runtime: node
     region: ohio
     plan: standard
-    buildCommand: npm ci --omit=dev && npx playwright install --with-deps chromium
+    buildCommand: npm ci --omit=dev
     startCommand: npm start
     healthCheckPath: /healthz
     disk:
@@ -18,6 +18,6 @@ services:
         value: production
       - key: DATA_DIR
         value: /var/data
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: '0'
+      - key: CHANGEWATCH_RENDER_MODE
+        value: static
 

@@ -118,6 +118,174 @@ function parseMetrics(text) {
   }
   return metrics;
 }
+const VOID_TAGS = new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
+const NON_TEXT_TAGS = new Set(['script','style','noscript','svg','iframe','template']);
+const BLOCK_TAGS = new Set(['address','article','aside','blockquote','div','dl','fieldset','figcaption','figure','footer','form','h1','h2','h3','h4','h5','h6','header','hr','li','main','nav','ol','p','pre','section','table','tr','ul']);
+function decodeHtmlEntities(value) {
+  const named = { amp:'&',apos:"'",gt:'>',lt:'<',nbsp:' ',quot:'"',ndash:'–',mdash:'—',rsquo:'’',lsquo:'‘',rdquo:'”',ldquo:'“',hellip:'…',copy:'©',reg:'®',trade:'™',euro:'€',pound:'£',cent:'¢',bull:'•',middot:'·' };
+  return String(value).replace(/&(#x[\da-f]+|#\d+|[a-z][\da-z]+);?/gi, (match, entity) => {
+    if (entity[0] === '#') {
+      const hex = entity[1]?.toLowerCase() === 'x'; const code = Number.parseInt(entity.slice(hex ? 2 : 1), hex ? 16 : 10);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    return named[entity.toLowerCase()] ?? match;
+  });
+}
+function parseHtmlTree(html) {
+  const root = { tag:'document', attrs:{}, children:[], parent:null };
+  const stack = [root];
+  const tokens = String(html).match(/<!--[\s\S]*?-->|<![^>]*>|<\/?[a-zA-Z][^>]*>|[^<]+|</g) || [];
+  for (const token of tokens) {
+    if (token.startsWith('<!--') || /^<!/i.test(token)) continue;
+    if (token.startsWith('</')) {
+      const tag = token.match(/^<\/\s*([\w:-]+)/)?.[1]?.toLowerCase();
+      if (!tag) continue;
+      for (let i = stack.length - 1; i > 0; i--) if (stack[i].tag === tag) { stack.length = i; break; }
+      continue;
+    }
+    const start = token.match(/^<([\w:-]+)\b([^>]*)>/);
+    if (start) {
+      const tag = start[1].toLowerCase(); const attrs = {};
+      const attrText = start[2].replace(/\/$/, '');
+      const attrPattern = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+      let attr;
+      while ((attr = attrPattern.exec(attrText))) attrs[attr[1].toLowerCase()] = decodeHtmlEntities(attr[2] ?? attr[3] ?? attr[4] ?? '');
+      const node = { tag, attrs, children:[], parent:stack.at(-1) };
+      stack.at(-1).children.push(node);
+      if (!VOID_TAGS.has(tag) && !/\/\s*>$/.test(token)) stack.push(node);
+      continue;
+    }
+    if (token !== '<') stack.at(-1).children.push({ text:decodeHtmlEntities(token), parent:stack.at(-1) });
+  }
+  return root;
+}
+function selectorGroups(selector) {
+  const groups = []; let current = ''; let brackets = 0; let quote = '';
+  for (const char of String(selector)) {
+    if (quote) { current += char; if (char === quote) quote = ''; continue; }
+    if (char === '"' || char === "'") { quote = char; current += char; continue; }
+    if (char === '[') brackets++; else if (char === ']') brackets--;
+    if (char === ',' && brackets === 0) { if (current.trim()) groups.push(current.trim()); current = ''; } else current += char;
+  }
+  if (current.trim()) groups.push(current.trim());
+  return groups;
+}
+function selectorParts(selector) {
+  const parts = []; let current = ''; let brackets = 0; let quote = ''; let nextRelation = ' ';
+  for (const char of selector.trim()) {
+    if (quote) { current += char; if (char === quote) quote = ''; continue; }
+    if (char === '"' || char === "'") { quote = char; current += char; continue; }
+    if (char === '[') brackets++; else if (char === ']') brackets--;
+    if (brackets === 0 && char === '>') { if (current.trim()) parts.push({compound:current.trim(),relation:nextRelation}); current=''; nextRelation='>'; continue; }
+    if (brackets === 0 && /\s/.test(char)) { if (current.trim()) { parts.push({compound:current.trim(),relation:nextRelation}); current=''; nextRelation=' '; } continue; }
+    current += char;
+  }
+  if (current.trim()) parts.push({compound:current.trim(),relation:nextRelation});
+  return parts;
+}
+function matchesCompound(node, compound) {
+  if (!node?.tag) return false;
+  let rest = compound; const tag = rest.match(/^\*|^[a-zA-Z][\w:-]*/);
+  if (tag) { if (tag[0] !== '*' && node.tag !== tag[0].toLowerCase()) return false; rest = rest.slice(tag[0].length); }
+  while (rest) {
+    let match;
+    if ((match = rest.match(/^#([\w:-]+)/))) { if (node.attrs.id !== match[1]) return false; rest=rest.slice(match[0].length); continue; }
+    if ((match = rest.match(/^\.([\w-]+)/))) { if (!(node.attrs.class || '').split(/\s+/).includes(match[1])) return false; rest=rest.slice(match[0].length); continue; }
+    if ((match = rest.match(/^\[([^\]]+)\]/))) {
+      const attr = match[1].trim().match(/^([\w:-]+)\s*(?:(=|\*=|\^=|\$=|~=)\s*["']?([^"']*?)["']?\s*(i)?\s*)?$/i);
+      if (!attr) return false;
+      const [, key, operator, expected, insensitive] = attr; const actual = node.attrs[key.toLowerCase()];
+      if (actual == null) return false;
+      if (operator) {
+        const left = insensitive ? actual.toLowerCase() : actual; const right = insensitive ? expected.toLowerCase() : expected;
+        if (operator === '=' && left !== right || operator === '*=' && !left.includes(right) || operator === '^=' && !left.startsWith(right) || operator === '$=' && !left.endsWith(right) || operator === '~=' && !left.split(/\s+/).includes(right)) return false;
+      }
+      rest=rest.slice(match[0].length); continue;
+    }
+    if ((match = rest.match(/^:nth-of-type\((\d+)\)/i))) {
+      const peers = node.parent?.children?.filter((item) => item.tag === node.tag) || [];
+      if (peers.indexOf(node) + 1 !== Number(match[1])) return false;
+      rest=rest.slice(match[0].length); continue;
+    }
+    return false;
+  }
+  return true;
+}
+function matchesSelector(node, selector) {
+  return selectorGroups(selector).some((group) => {
+    const parts = selectorParts(group);
+    if (!parts.length || !matchesCompound(node, parts.at(-1).compound)) return false;
+    let current = node;
+    for (let i = parts.length - 1; i > 0; i--) {
+      const relation = parts[i].relation;
+      if (relation === '>') { current=current.parent; if (!matchesCompound(current, parts[i-1].compound)) return false; }
+      else { let parent=current.parent; while (parent && !matchesCompound(parent, parts[i-1].compound)) parent=parent.parent; if (!parent) return false; current=parent; }
+    }
+    return true;
+  });
+}
+function extractStaticText(html, page, defaultIgnore) {
+  const root = parseHtmlTree(html);
+  const allNodes = []; const visit = (node) => { for (const child of node.children || []) if (child.tag) { allNodes.push(child); visit(child); } }; visit(root);
+  const ignored = new Set(allNodes.filter((node) => NON_TEXT_TAGS.has(node.tag) || [...defaultIgnore, ...page.ignoreSelectors].some((selector) => matchesSelector(node, selector))));
+  const read = (node) => {
+    if (ignored.has(node)) return '';
+    if (node.text != null) return node.text;
+    const value = node.children.map(read).join('');
+    return BLOCK_TAGS.has(node.tag) ? `\n${value}\n` : node.tag === 'br' ? '\n' : value;
+  };
+  const selected = page.watchSelectors.length ? allNodes.filter((node) => page.watchSelectors.some((selector) => matchesSelector(node, selector)) && !ignored.has(node)) : [root];
+  const roots = selected.filter((node) => !selected.some((other) => other !== node && isAncestor(other, node)));
+  return roots.map(read).join('\n').replace(/[\t\f\r ]+/g, ' ').replace(/ *\n+ */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+function isAncestor(parent, node) { for (let item = node.parent; item; item=item.parent) if (item === parent) return true; return false; }
+async function fetchPublicHtml(urlText) {
+  let target = new URL(urlText);
+  for (let redirect = 0; redirect <= 5; redirect++) {
+    await assertPublicHost(target.href);
+    const response = await fetch(target, { redirect:'manual', headers:{'user-agent':'Changewatch/1.0 (+public-page-monitor)','accept':'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5'}, signal:AbortSignal.timeout(TIMEOUT) });
+    if ([301,302,303,307,308].includes(response.status)) {
+      const location = response.headers.get('location');
+      if (!location) throw new Error('The page redirected without a destination.');
+      if (redirect === 5) throw new Error('The page redirected too many times.');
+      target = new URL(location, target);
+      continue;
+    }
+    return response;
+  }
+  throw new Error('The page redirected too many times.');
+}
+async function responseTextLimited(response, maxBytes=5_000_000) {
+  const declared = Number(response.headers.get('content-length') || 0);
+  if (declared > maxBytes) throw new Error('The page response is larger than the 5 MB check limit.');
+  const reader = response.body?.getReader();
+  if (!reader) return '';
+  const chunks=[]; let total=0;
+  try { while (true) { const {done,value}=await reader.read(); if(done) break; total+=value.byteLength; if(total>maxBytes) { await reader.cancel(); throw new Error('The page response is larger than the 5 MB check limit.'); } chunks.push(Buffer.from(value)); } }
+  finally { reader.releaseLock(); }
+  return Buffer.concat(chunks,total).toString('utf8');
+}
+async function fetchStaticPage(page, defaultIgnore) {
+  const start=Date.now();
+  try {
+    const response=await fetchPublicHtml(page.url); const httpStatus=response.status;
+    if (httpStatus === 401 || httpStatus === 403 || httpStatus === 429) return {status:'blocked',httpStatus,error:`The public page blocked automated access (HTTP ${httpStatus}).`,durationMs:Date.now()-start};
+    if (httpStatus >= 400) return {status:'error',httpStatus,error:`The page returned HTTP ${httpStatus}; it was recorded as an error, not a content change.`,durationMs:Date.now()-start};
+    const contentType=response.headers.get('content-type') || '';
+    if (contentType && !/(text\/html|application\/xhtml\+xml|text\/plain)/i.test(contentType)) return {status:'error',httpStatus,error:`The page returned unsupported content type ${contentType.split(';')[0]}.`,durationMs:Date.now()-start};
+    const html=await responseTextLimited(response);
+    const text=extractStaticText(html,page,defaultIgnore);
+    if (BLOCKED_COPY.test(text) && text.length < 15000) return {status:'blocked',httpStatus,error:'The site presented a CAPTCHA or access challenge.',durationMs:Date.now()-start};
+    if (!text) return {status:'error',httpStatus,error:page.watchSelectors.length?'No text matched the watch selectors in the server-rendered HTML. This page may require JavaScript rendering.':'The server-rendered page has no readable text; it may require JavaScript rendering.',durationMs:Date.now()-start};
+    const metrics=parseMetrics(text); const normalized=normalizeText(text,page.sensitivity).slice(0,1_000_000);
+    const hash=crypto.createHash('sha256').update(normalized).digest('hex');
+    return {status:'ok',httpStatus,hash,text:normalized,metrics,screenshot:null,durationMs:Date.now()-start,renderMode:'static'};
+  } catch(error) {
+    const message=error.message || 'Page check failed.';
+    const blocked=/private network|blockedbyclient|private address/i.test(message);
+    return {status:blocked?'blocked':'error',error:message.slice(0,300),durationMs:Date.now()-start};
+  }
+}
 function createChecker(store) {
   let browserPromise;
   let alertDelivery;
@@ -162,6 +330,7 @@ function createChecker(store) {
   }
   async function fetchPage(page) {
     const start = Date.now();
+    if (process.env.CHANGEWATCH_RENDER_MODE === 'static') return fetchStaticPage(page, store.constants.DEFAULT_IGNORE.split(','));
     let context;
     try {
       await assertPublicHost(page.url);
@@ -205,6 +374,10 @@ function createChecker(store) {
       return { status: 'ok', httpStatus, hash, text: normalized, metrics, screenshot, durationMs: Date.now() - start };
     } catch (error) {
       const message = error.message || 'Page check failed.';
+      if (/executable doesn't exist|please run.*playwright install|browser.*not found|chrome-headless-shell/i.test(message)) {
+        console.warn('Playwright Chromium is unavailable; checking this page from its server-rendered HTML instead.');
+        return fetchStaticPage(page, store.constants.DEFAULT_IGNORE.split(','));
+      }
       const blocked = /private network|blockedbyclient|private address/i.test(message);
       return { status: blocked ? 'blocked' : 'error', error: message.slice(0, 300), durationMs: Date.now() - start };
     } finally { await context?.close().catch(() => {}); }
@@ -301,6 +474,7 @@ function createChecker(store) {
     return run;
   }
   async function openPicker(id) {
+    if (process.env.CHANGEWATCH_RENDER_MODE === 'static') throw new Error('Visual region picking is unavailable in static mode. Enter CSS selectors in Watch settings instead.');
     const page = store.getPage(id); if (!page) throw Object.assign(new Error('Page not found'), { status: 404 });
     await closePicker(id);
     const context = await secureContext();
@@ -346,6 +520,7 @@ function createChecker(store) {
     const left = store.getSnapshot(id, a); const right = store.getSnapshot(id, b);
     if (!left || !right) throw Object.assign(new Error('Choose two available versions.'), { status: 404 });
     const diff = textChanges(left.text || '', right.text || '');
+    if (!left.screenshot || !right.screenshot) return { a:{version:a,date:left.created_at,summary:left.summary}, b:{version:b,date:right.created_at,summary:right.summary}, textDiff:diff, highlightedPng:null, sideBySidePng:null, diffRatio:null };
     const oldPng = PNG.sync.read(left.screenshot); const newPng = PNG.sync.read(right.screenshot);
     const width = Math.max(oldPng.width, newPng.width); const height = Math.max(oldPng.height, newPng.height);
     const side = new PNG({ width: width * 2, height });
@@ -373,4 +548,4 @@ function createChecker(store) {
 }
 function commonPrefix(a, b) { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return a.slice(0, i); }
 function commonSuffix(a, b) { let i = 0; while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++; return a.slice(a.length - i); }
-module.exports = { createChecker, normalizeText, parseMetrics, assertPublicHost, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords };
+module.exports = { createChecker, normalizeText, parseMetrics, assertPublicHost, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords, extractStaticText, fetchStaticPage };

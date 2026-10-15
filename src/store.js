@@ -176,7 +176,7 @@ function createStore() {
     get: db.prepare('SELECT * FROM pages WHERE id=?'),
     add: db.prepare(`INSERT INTO pages(user_id,url,name,interval_seconds,sensitivity,watch_selectors,ignore_selectors,keywords,alert_email,discord_enabled,telegram_chat_id,daily_digest,created_at,next_check_at)
       VALUES(@userId,@url,@name,@interval,@sensitivity,@watch,@ignore,@keywords,@email,@discord,@telegram,@digest,@now,@now)`),
-    versions: db.prepare(`SELECT s.id,s.version,s.content_hash,s.created_at,s.summary,c.text,c.status,c.http_status,c.error,c.duration_ms
+    versions: db.prepare(`SELECT s.id,s.version,s.content_hash,s.created_at,s.summary,c.text,c.status,c.http_status,c.error,c.duration_ms,(c.screenshot IS NOT NULL) AS has_screenshot
       FROM snapshots s JOIN checks c ON c.id=s.check_id WHERE s.page_id=? ORDER BY s.version DESC`),
   };
 
