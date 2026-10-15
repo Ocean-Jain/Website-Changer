@@ -24,7 +24,7 @@ The Blueprint uses a paid Standard web instance and a 1 GB persistent disk mount
 
 - **Project type:** Website Change Detector (Web Development).
 - **Public deployed website:** Pending deployment. Replace this line with the public Render URL before submitting: `https://<your-service>.onrender.com`.
-- **Test script:** Run `npm test`; the automated test suite is in `test/changewatch.test.js`.
+- **Test scripts:** Run `npm test` for the full test suite or `npm run test:detector` for the Website Change Detector checks in `test/test.js`.
 - **Description and setup:** The project summary and local setup commands are at the top of this README.
 - **Public access:** After deployment, open the public URL while signed out and confirm that the sign-in/sign-up page loads. `/healthz` should return `ok`. Users need to create an account to access their private watchlists.
 
@@ -53,7 +53,7 @@ The Blueprint uses a paid Standard web instance and a 1 GB persistent disk mount
 - Secrets for SMTP, Discord, Telegram, and OpenAI belong in the hosting provider's environment settings, not in source control.
 - Set `APP_URL` to the service's public base URL when self-hosting so change alerts and digests include working comparison links. Render's `RENDER_EXTERNAL_HOSTNAME` is used automatically.
 - `GET /healthz` is public for service health checks. Dashboard APIs require a signed-in account; RSS feeds require their per-page token.
-- Run unit tests with `npm test`.
+- Run all unit tests with `npm test`; run the detector-specific suite with `npm run test:detector`.
 
 ## Project layout
 
