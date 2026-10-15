@@ -44,7 +44,7 @@ function toast(message) {
 async function refresh() {
   try {
     [pages] = await Promise.all([api('/api/pages'), api('/api/stats').then((stats) => {
-      $('#stats').innerHTML = `<div class="stat"><b>${stats.pages}</b><span>pages watched</span></div><div class="stat"><b>${stats.changes24h}</b><span>changes today</span></div><div class="stat"><b>${stats.checks24h}</b><span>checks today</span></div>`;
+      $('#stats').innerHTML = `<div class="stat"><b>${stats.pages}</b><span>pages tracked</span></div><div class="stat"><b>${stats.changes24h}</b><span>changes · 24h</span></div><div class="stat"><b>${stats.checks24h}</b><span>checks · 24h</span></div>`;
     })]);
     renderPages();
   } catch (error) { toast(error.message); }
@@ -52,7 +52,8 @@ async function refresh() {
 function renderPages() {
   const term = $('#search').value.trim().toLowerCase();
   const visible = pages.filter((p) => `${p.name} ${p.url}`.toLowerCase().includes(term));
-  $('#watch-count').textContent = `${pages.length} ${pages.length === 1 ? 'page' : 'pages'} · checks are scheduled automatically`;
+  $('#watch-count').textContent = pages.length ? `${pages.length} ${pages.length === 1 ? 'page' : 'pages'} monitored · checks scheduled automatically` : 'Your monitored pages and their history will appear here.';
+  $('.search').hidden = pages.length === 0;
   $('#empty').hidden = pages.length > 0;
   $('#page-list').innerHTML = visible.map((p) => `<article class="page-card" data-id="${p.id}">
     <div class="page-main" data-detail="${p.id}"><div class="page-title-row"><span class="page-title">${esc(p.name)}</span><span class="badge ${esc(p.status)}">${esc(p.status || 'waiting')}</span>${p.last_changed_at ? '<span class="change-label">Changed</span>' : ''}</div>
@@ -61,7 +62,7 @@ function renderPages() {
     <div class="page-actions"><button class="button secondary" data-check="${p.id}">Check now</button><button class="icon-button" data-delete="${p.id}" aria-label="Delete ${esc(p.name)}">×</button></div>
   </article>`).join('');
   $('#page-list').hidden = pages.length === 0 || visible.length === 0;
-  if (pages.length && !visible.length) $('#page-list').innerHTML = '<p class="empty">No pages match that search.</p>', $('#page-list').hidden = false;
+  if (pages.length && !visible.length) $('#page-list').innerHTML = '<p class="empty-message">No pages match that search.</p>', $('#page-list').hidden = false;
 }
 
 function csv(value) { return value.split(',').map((x) => x.trim()).filter(Boolean); }
