@@ -134,8 +134,9 @@ function decodeHtmlEntities(value) {
 function parseHtmlTree(html) {
   const root = { tag:'document', attrs:{}, children:[], parent:null };
   const stack = [root];
-  const tokens = String(html).match(/<!--[\s\S]*?-->|<![^>]*>|<\/?[a-zA-Z][^>]*>|[^<]+|</g) || [];
+  const tokens = String(html).match(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<![^>]*>|<\/?[a-zA-Z][^>]*>|[^<]+|</g) || [];
   for (const token of tokens) {
+    if (token.startsWith('<![CDATA[')) { stack.at(-1).children.push({ text:token.slice(9,-3), parent:stack.at(-1) }); continue; }
     if (token.startsWith('<!--') || /^<!/i.test(token)) continue;
     if (token.startsWith('</')) {
       const tag = token.match(/^<\/\s*([\w:-]+)/)?.[1]?.toLowerCase();
@@ -238,7 +239,26 @@ function extractStaticText(html, page, defaultIgnore) {
   const roots = selected.filter((node) => !selected.some((other) => other !== node && isAncestor(other, node)));
   return roots.map(read).join('\n').replace(/[\t\f\r ]+/g, ' ').replace(/ *\n+ */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
+function extractFeedText(xml) {
+  const root=parseHtmlTree(xml); const entries=[];
+  const walk=(node) => { for(const child of node.children||[]) if(child.tag) { if(child.tag==='item'||child.tag==='entry') entries.push(child); else walk(child); } };
+  walk(root);
+  const fields=new Set(['title','description','summary','content','content:encoded']);
+  const textOf=(node) => (node.children||[]).map((child) => child.text ?? textOf(child)).join(' ');
+  const lines=entries.flatMap((entry) => {
+    const values=[]; const collect=(node) => { for(const child of node.children||[]) if(child.tag) { if(fields.has(child.tag)) values.push(decodeHtmlEntities(textOf(child).replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim()); else collect(child); } };
+    collect(entry); return values.filter(Boolean).slice(0,5);
+  });
+  return lines.join('\n').trim();
+}
 function isAncestor(parent, node) { for (let item = node.parent; item; item=item.parent) if (item === parent) return true; return false; }
+function retryAfterSeconds(value, now=Date.now()) {
+  if (!value) return 0;
+  const seconds=Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+  const at=Date.parse(value);
+  return Number.isFinite(at) ? Math.max(0,Math.ceil((at-now)/1000)) : 0;
+}
 async function fetchPublicHtml(urlText) {
   let target = new URL(urlText);
   for (let redirect = 0; redirect <= 5; redirect++) {
@@ -269,12 +289,18 @@ async function fetchStaticPage(page, defaultIgnore) {
   const start=Date.now();
   try {
     const response=await fetchPublicHtml(page.url); const httpStatus=response.status;
-    if (httpStatus === 401 || httpStatus === 403 || httpStatus === 429) return {status:'blocked',httpStatus,error:`The public page blocked automated access (HTTP ${httpStatus}).`,durationMs:Date.now()-start};
+    if (httpStatus === 401 || httpStatus === 403 || httpStatus === 429) {
+      const retry= httpStatus===429 ? retryAfterSeconds(response.headers.get('retry-after')) : 0;
+      const wait=retry ? ` The site requested a ${Math.ceil(retry/60)} minute cooldown; the next check is deferred accordingly.` : '';
+      return {status:'blocked',httpStatus,retryAfterSeconds:retry,error:`The public page blocked automated access (HTTP ${httpStatus}).${wait} Use a published RSS/Atom feed or official API if available.`,durationMs:Date.now()-start};
+    }
     if (httpStatus >= 400) return {status:'error',httpStatus,error:`The page returned HTTP ${httpStatus}; it was recorded as an error, not a content change.`,durationMs:Date.now()-start};
     const contentType=response.headers.get('content-type') || '';
-    if (contentType && !/(text\/html|application\/xhtml\+xml|text\/plain)/i.test(contentType)) return {status:'error',httpStatus,error:`The page returned unsupported content type ${contentType.split(';')[0]}.`,durationMs:Date.now()-start};
+    const isFeed=/(?:rss|atom)\+xml|(?:application|text)\/xml/i.test(contentType);
+    if (contentType && !/(text\/html|application\/xhtml\+xml|text\/plain|(?:rss|atom)\+xml|(?:application|text)\/xml)/i.test(contentType)) return {status:'error',httpStatus,error:`The page returned unsupported content type ${contentType.split(';')[0]}. Use its published RSS/Atom feed or official API if available.`,durationMs:Date.now()-start};
     const html=await responseTextLimited(response);
-    const text=extractStaticText(html,page,defaultIgnore);
+    const feedLike=isFeed || /^\s*(?:<\?xml[^>]*>\s*)?<(rss|feed)\b/i.test(html);
+    const text=feedLike ? extractFeedText(html) : extractStaticText(html,page,defaultIgnore);
     if (BLOCKED_COPY.test(text) && text.length < 15000) return {status:'blocked',httpStatus,error:'The site presented a CAPTCHA or access challenge.',durationMs:Date.now()-start};
     if (!text) return {status:'error',httpStatus,error:page.watchSelectors.length?'No text matched the watch selectors in the server-rendered HTML. This page may require JavaScript rendering.':'The server-rendered page has no readable text; it may require JavaScript rendering.',durationMs:Date.now()-start};
     const metrics=parseMetrics(text); const normalized=normalizeText(text,page.sensitivity).slice(0,1_000_000);
@@ -548,4 +574,4 @@ function createChecker(store) {
 }
 function commonPrefix(a, b) { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return a.slice(0, i); }
 function commonSuffix(a, b) { let i = 0; while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++; return a.slice(a.length - i); }
-module.exports = { createChecker, normalizeText, parseMetrics, assertPublicHost, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords, extractStaticText, fetchStaticPage };
+module.exports = { createChecker, normalizeText, parseMetrics, assertPublicHost, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords, extractStaticText, extractFeedText, retryAfterSeconds, fetchStaticPage };

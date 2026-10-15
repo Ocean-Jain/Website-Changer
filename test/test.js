@@ -9,7 +9,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { createStore, validPublicUrl } = require('../src/store');
-const { normalizeText, parseMetrics, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords, extractStaticText, createChecker } = require('../src/checker');
+const { normalizeText, parseMetrics, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords, extractStaticText, extractFeedText, createChecker } = require('../src/checker');
 
 async function withStore(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'changewatch-'));
@@ -171,6 +171,34 @@ test('static HTML extraction honors watch and ignore selectors without executing
   assert.doesNotMatch(text, /Buy now|fake|12:30/);
   assert.equal(extractStaticText(html, { ...page, watchSelectors:['.updates'] }, ['script','style','time']).includes('Version 2'), true);
 });
+
+test('RSS and Atom feed entries are extracted as readable monitored content', () => {
+  const rss='<?xml version="1.0"?><rss><channel><item><title>Roadmap update</title><description><![CDATA[<p>New release &amp; fixes</p>]]></description><pubDate>Mon, 12 Oct 2026 10:00:00 GMT</pubDate></item></channel></rss>';
+  const atom='<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Service notice</title><summary>Maintenance tonight</summary><updated>2026-10-12T10:00:00Z</updated></entry></feed>';
+  assert.equal(extractFeedText(rss),'Roadmap update\nNew release & fixes');
+  assert.equal(extractFeedText(atom),'Service notice\nMaintenance tonight');
+});
+
+test('static mode accepts RSS feeds and honors Retry-After after HTTP 429', () => withStore(async (store) => {
+  const oldMode=process.env.CHANGEWATCH_RENDER_MODE; const oldFetch=global.fetch;
+  process.env.CHANGEWATCH_RENDER_MODE='static';
+  global.fetch=async (url) => String(url).endsWith('/feed')
+    ? new Response('<?xml version="1.0"?><rss><channel><item><title>Release note</title><description>Version 4</description></item></channel></rss>', {status:200,headers:{'content-type':'application/rss+xml'}})
+    : new Response('Too many requests', {status:429,headers:{'retry-after':'3600'}});
+  const feed=store.addPage({url:'https://8.8.8.8/feed',name:'Release feed',intervalMinutes:15});
+  const limited=store.addPage({url:'https://8.8.4.4/limited',name:'Limited page',intervalMinutes:15});
+  const checker=createChecker(store);
+  try {
+    const result=await checker.check(feed.id);
+    assert.equal(result.status,'ok'); assert.match(result.text,/Release note/); assert.equal(store.listSnapshots(feed.id).length,1);
+    const blocked=await checker.check(limited.id);
+    assert.equal(blocked.status,'blocked'); assert.match(blocked.error,/cooldown/);
+    assert.ok(Date.parse(store.getPage(limited.id).next_check_at) >= Date.now()+59*60*1000);
+  } finally {
+    await checker.close(); global.fetch=oldFetch;
+    if(oldMode===undefined) delete process.env.CHANGEWATCH_RENDER_MODE; else process.env.CHANGEWATCH_RENDER_MODE=oldMode;
+  }
+}));
 
 test('text comparison still works for snapshots without screenshots', () => withStore(async (store) => {
   const page = store.addPage({ url:'https://example.com/text-only', intervalMinutes:15 });

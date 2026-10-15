@@ -17,7 +17,7 @@
 
   <dialog id="add-dialog" class="dialog"><form id="add-form" method="dialog"><div class="dialog-head"><div><p class="eyebrow">NEW MONITOR</p><h2>Add a page to watch</h2></div><button type="button" class="icon-button" data-close aria-label="Close">×</button></div>
     <label>Page name<input name="name" maxlength="100" placeholder="Product updates" required></label>
-    <label>Public page URL<input name="url" type="url" placeholder="https://example.com/updates" required></label>
+    <label>Public page URL <span class="field-note">HTML pages and RSS/Atom feed URLs are supported. If a site returns 429, use its published feed or API.</span><input name="url" type="url" placeholder="https://example.com/updates or /feed.xml" required></label>
     <div class="form-row"><label>Check interval<select name="intervalMinutes"><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60" selected>Every hour</option><option value="360">Every 6 hours</option><option value="720">Every 12 hours</option><option value="1440">Every 24 hours</option></select></label><label>Sensitivity<select name="sensitivity"><option value="low">Low · ignore small changes</option><option value="medium" selected>Medium · balanced</option><option value="high">High · catch small changes</option></select></label></div>
     <label>Watch regions <span class="field-note">Optional CSS selectors, comma separated</span><input name="watchSelectors" placeholder="main, .release-notes"></label>
     <label>Ignore regions <span class="field-note">Optional CSS selectors to exclude</span><input name="ignoreSelectors" placeholder=".cookie-banner, #promo"></label>

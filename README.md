@@ -22,7 +22,7 @@ The root `render.yaml` is a Blueprint. Push the repository to a Git provider, se
 
 The Blueprint uses a paid Standard web instance and a 1 GB persistent disk mounted at `/var/data`. SQLite accounts, snapshots, and history use that disk so they survive deploys. Render Free web services do not have persistent disks, so their local files are lost on restart.
 
-Render uses `CHANGEWATCH_RENDER_MODE=static`: scheduled checks fetch and parse public server-rendered HTML using Node's built-in `fetch`, with no Chromium installation or launch required. This avoids browser-binary cache issues in the Render runtime. Pages that require client-side JavaScript may not expose their content in static mode; screenshot diffs and the visual picker are unavailable there, while text snapshots, text comparisons, and alerts continue to work. For browser-rendered pages, run outside static mode on a host where Playwright Chromium is installed.
+Render uses `CHANGEWATCH_RENDER_MODE=static`: scheduled checks fetch public server-rendered HTML or RSS/Atom feeds using Node's built-in `fetch`, with no Chromium installation or launch required. This avoids browser-binary cache issues in the Render runtime. Pages that require client-side JavaScript may not expose their content in static mode; screenshot diffs and the visual picker are unavailable there, while text snapshots, text comparisons, and alerts continue to work. For browser-rendered pages, run outside static mode on a host where Playwright Chromium is installed.
 
 
 ## Detection and alerts
@@ -39,6 +39,7 @@ Render uses `CHANGEWATCH_RENDER_MODE=static`: scheduled checks fetch and parse p
 ## Core requirement answers
 
 - **Outage or CAPTCHA vs. a change:** HTTP 401, 403, 429 responses and detected access challenges are marked `blocked`; HTTP errors and network failures are marked `error`. Neither status creates a content version or a change alert.
+- **Rate limited pages and feeds:** The checker does not retry a 429 immediately. If the site supplies `Retry-After`, that cooldown is stored as the earliest next check (up to seven days); use the publisher's RSS/Atom feed or official API when one is available. RSS/Atom URLs can be monitored directly in Render static mode.
 - **Many users watching one URL:** Concurrent checks and checks made within 60 seconds share a fetched result when URL and watch settings match. This is an in-process cache, so different selectors/sensitivity or multiple app instances can cause separate requests.
 - **Pages that change on every load:** Text normalization removes common timestamps, counters, and token noise; ignore selectors can remove volatile regions. Sensitivity controls number filtering and alert cooldown. Keyword filters match only text added or removed by a version change, and version/channel deduplication prevents duplicate alerts. A genuinely changing page can still alert again after its cooldown.
 - **Avoiding excess requests:** Monitors run no more often than every 15 minutes, the queue caps concurrency at two and limits queued work, and requests to the same host are spaced by at least 15 seconds unless a shared result is available. Navigation and browser actions have timeouts and transient errors retry up to three times.

@@ -242,7 +242,8 @@ function createStore() {
         const snap = db.prepare('INSERT INTO snapshots(page_id,check_id,version,content_hash,created_at) VALUES(?,?,?,?,?)').run(page.id, info.lastInsertRowid, version, result.hash, checked);
         snapshot = { id: snap.lastInsertRowid, version, createdAt: checked, changed: true };
       }
-      const nextCheck = new Date(Date.now() + page.interval_seconds * 1000).toISOString();
+      const requestedCooldown = Math.min(7 * 24 * 60 * 60, Math.max(0, Number(result.retryAfterSeconds) || 0));
+      const nextCheck = new Date(Date.now() + Math.max(page.interval_seconds, requestedCooldown) * 1000).toISOString();
       db.prepare(`UPDATE pages SET last_checked_at=?,next_check_at=?,status=?,last_error=?,last_hash=CASE WHEN ?='ok' THEN ? ELSE last_hash END,
         last_changed_at=CASE WHEN ? IS NOT NULL THEN ? ELSE last_changed_at END WHERE id=?`)
         .run(checked, nextCheck, result.status, result.error || null, result.status, result.hash || null, snapshot ? 1 : null, checked, page.id);
