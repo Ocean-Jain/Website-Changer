@@ -134,3 +134,58 @@
 @media(prefers-reduced-motion:reduce){
   .auth-tabs::after,.auth-tabs button,.auth-card input,.auth-submit.button.primary{transition:none}
 }
+
+/* Multicolor ambient accents shared with the tracker dashboard */
+.login-page{
+  background-image:
+    url('/noise.svg'),
+    radial-gradient(ellipse 72% 56% at 7% 5%,rgba(26,173,167,.2),transparent 70%),
+    radial-gradient(ellipse 48% 55% at 94% 10%,rgba(83,105,219,.17),transparent 72%),
+    radial-gradient(ellipse 52% 48% at 82% 95%,rgba(205,132,67,.15),transparent 72%),
+    radial-gradient(ellipse 38% 48% at 1% 100%,rgba(121,79,191,.12),transparent 72%),
+    linear-gradient(145deg,#101515 0%,#151b1a 50%,#111514 100%);
+  background-size:180px 180px,auto,auto,auto,auto,auto;
+  background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat;
+  background-attachment:fixed,fixed,fixed,fixed,fixed,fixed;
+}
+.login-note h1 em{
+  background:linear-gradient(105deg,#91e7c5 4%,#63d4dc 52%,#a9a2f5 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+.auth-tabs::after{
+  background:linear-gradient(90deg,#68e0c1 0%,#60d4e7 55%,#aa9cf4 100%);
+  box-shadow:0 0 12px rgba(89,211,220,.28);
+}
+.auth-tabs button.active{color:#e3f1ed}
+.auth-card input:focus-visible{
+  border-color:rgba(91,218,209,.78);
+  outline-color:rgba(103,194,225,.5);
+  box-shadow:0 0 0 4px rgba(63,205,188,.12),0 0 22px rgba(111,112,231,.18),inset 0 1px 3px rgba(0,0,0,.28);
+}
+.auth-submit.button.primary{
+  background-image:linear-gradient(108deg,#16805e 0%,#128b9b 52%,#356fae 78%,#765cc2 100%);
+  background-size:180% 100%;
+  background-position:0 0;
+  box-shadow:0 8px 25px rgba(17,127,116,.24),inset 0 1px 0 rgba(255,255,255,.16);
+}
+.auth-submit.button.primary:hover:not(:disabled){
+  background-image:linear-gradient(108deg,#16805e 0%,#128b9b 30%,#4b78c6 65%,#8b68cf 100%);
+  background-position:100% 0;
+  box-shadow:0 10px 30px rgba(48,118,174,.3),0 0 20px rgba(133,101,211,.16),inset 0 1px 0 rgba(255,255,255,.18);
+}
+.login-footer a{color:#82d9d0}
+.login-page::before{
+  background:
+    radial-gradient(circle at 36% 38%,rgba(90,207,229,.12),transparent 45%),
+    radial-gradient(circle at 64% 66%,rgba(157,115,230,.11),transparent 52%);
+}
+.login-page::after{
+  background:
+    radial-gradient(circle at 63% 35%,rgba(88,213,183,.13),transparent 46%),
+    radial-gradient(circle at 38% 68%,rgba(216,154,92,.12),transparent 58%);
+}
+@media(max-width:760px){
+  .login-page{background-attachment:scroll,scroll,scroll,scroll,scroll,scroll}
+}
