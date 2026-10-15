@@ -90,6 +90,23 @@ test('accounts enforce unique email addresses and isolate identical URLs', () =>
   assert.equal(store.sessionUser(session.token), null);
 }));
 
+test('account credentials and sign-in sessions survive reopening the SQLite store', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'changewatch-persistence-'));
+  const previous = process.env.DATA_DIR; process.env.DATA_DIR = dir;
+  let store = createStore();
+  try {
+    const user = await store.createUser('returning@example.com', 'a persistent account password');
+    const session = store.createSession(user.id);
+    store.close();
+    store = createStore();
+    assert.equal((await store.authenticate('RETURNING@example.com', 'a persistent account password')).id, user.id);
+    assert.equal(store.sessionUser(session.token).id, user.id);
+  } finally {
+    store.close(); fs.rmSync(dir, { recursive: true, force: true });
+    if (previous === undefined) delete process.env.DATA_DIR; else process.env.DATA_DIR = previous;
+  }
+});
+
 test('the first account claims pre-account watchlist data during upgrade', () => withStore(async (store) => {
   const legacy = store.addPage({ url: 'https://example.com/legacy', intervalMinutes: 15 });
   const user = await store.createUser('owner@example.com', 'a sufficiently long password');

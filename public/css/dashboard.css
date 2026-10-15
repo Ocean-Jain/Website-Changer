@@ -1,6 +1,6 @@
 :root{--ink:#e9e7df;--muted:#a09f96;--line:#343a36;--paper:#171a19;--white:#202422;--green:#8bdcc1;--mint:#203c32;--amber:#e2b77c;--red:#e28b78;color-scheme:dark}
-body{background:var(--paper);color:var(--ink)}
-.topbar{background:#1b1f1d;border-color:#303633}
+body{background:radial-gradient(ellipse at 17% 0%,#243a30 0%,#1b2420 34%,#171a19 72%,#191d1a 100%);background-attachment:fixed;color:var(--ink)}
+.topbar{background:rgba(23,28,25,.92);border-color:#303633}
 .brand-mark{border-radius:8px;background:#155942;color:#e8f5ee}
 .service-state{color:#aaa99f}.service-state i{background:#85d4b4}
 .shell{max-width:1120px;padding-top:54px}
