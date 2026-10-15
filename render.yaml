@@ -18,4 +18,6 @@ services:
         value: production
       - key: DATA_DIR
         value: /var/data
+      - key: PLAYWRIGHT_BROWSERS_PATH
+        value: '0'
 

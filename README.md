@@ -22,6 +22,8 @@ The root `render.yaml` is a Blueprint. Push the repository to a Git provider, se
 
 The Blueprint uses a paid Standard web instance and a 1 GB persistent disk mounted at `/var/data`. Chromium needs memory to render pages, and SQLite snapshots need persistent storage to survive deploys. Render Free web services do not have persistent disks, so their local files are lost on restart.
 
+The Blueprint sets `PLAYWRIGHT_BROWSERS_PATH=0` so Chromium is installed inside `node_modules/playwright-core/.local-browsers` during the build and Playwright finds that same browser at runtime. If a deployed monitor reports a missing Chromium executable, sync the Blueprint and trigger a fresh deploy so the browser is installed with the current locked Playwright version.
+
 
 ## Detection and alerts
 
