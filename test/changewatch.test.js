@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { createStore, validPublicUrl } = require('../src/store');
-const { normalizeText, parseMetrics, isPrivateIp, summarizeChange } = require('../src/checker');
+const { normalizeText, parseMetrics, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords } = require('../src/checker');
 
 async function withStore(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'changewatch-'));
@@ -149,6 +149,15 @@ test('normalization removes common time and counter noise with sensitivity level
 
 test('extracts labeled numeric values for history charts', () => {
   assert.deepEqual(parseMetrics('Price: $1,234.50\nAvailability = 92%\nUpdated: 2026-10-15'), { Price: 1234.5, Availability: 92 });
+});
+
+test('keyword alerts match changed text only and every change gets a local summary', () => {
+  const before = 'Status: stable\nPricing: $20';
+  const after = 'Status: stable\nPricing: $25';
+  assert.equal(changedTextMatchesKeywords(before, after, ['pricing']), true);
+  assert.equal(changedTextMatchesKeywords(before, after, ['stable']), false);
+  assert.equal(changedTextMatchesKeywords(before, after, []), true);
+  assert.match(localChangeSummary(before, after), /Pricing/);
 });
 
 test('uses the Responses API without storing generated responses when AI summaries are enabled', async () => {

@@ -28,6 +28,40 @@ async function summarizeChange(before, after) {
   const text = (body.output || []).flatMap((item) => item.content || []).filter((part) => part.type === 'output_text').map((part) => part.text).join(' ');
   return text.replace(/\s+/g, ' ').trim().slice(0, 300);
 }
+function textChanges(before, after) {
+  const oldText = String(before || ''); const newText = String(after || '');
+  const prefix = commonPrefix(oldText, newText);
+  const oldTail = oldText.slice(prefix.length); const newTail = newText.slice(prefix.length);
+  const suffix = commonSuffix(oldTail, newTail).length;
+  return { removed: oldTail.slice(0, oldTail.length - suffix), added: newTail.slice(0, newTail.length - suffix) };
+}
+function localChangeSummary(before, after) {
+  const oldText = String(before || ''); const newText = String(after || '');
+  const diff = textChanges(before, after);
+  const excerpt = (text) => {
+    const value = String(text || '').replace(/\s+/g, ' ').trim();
+    return value.length > 110 ? `${value.slice(0, 107)}…` : value;
+  };
+  const prefixLength = commonPrefix(oldText, newText).length;
+  const lineAt = (text) => {
+    const start = text.lastIndexOf('\n', Math.max(0, prefixLength - 1)) + 1;
+    const end = text.indexOf('\n', prefixLength);
+    return text.slice(start, end < 0 ? text.length : end);
+  };
+  const removed = diff.removed ? lineAt(oldText) || diff.removed : '';
+  const added = diff.added ? lineAt(newText) || diff.added : '';
+  if (added && removed) return `Changed “${excerpt(removed)}” to “${excerpt(added)}”.`.slice(0, 300);
+  if (added) return `Added “${excerpt(added)}”.`.slice(0, 300);
+  if (removed) return `Removed “${excerpt(removed)}”.`.slice(0, 300);
+  return 'The page content changed.';
+}
+function changedTextMatchesKeywords(before, after, keywords) {
+  if (!keywords?.length) return true;
+  const oldLines = String(before || '').split('\n'); const newLines = String(after || '').split('\n');
+  const oldSet = new Set(oldLines); const newSet = new Set(newLines);
+  const changed = [...oldLines.filter((line) => !newSet.has(line)), ...newLines.filter((line) => !oldSet.has(line))].join('\n').toLocaleLowerCase();
+  return keywords.some((keyword) => changed.includes(String(keyword).toLocaleLowerCase()));
+}
 function isPrivateIp(ip) {
   if (net.isIPv4(ip)) {
     const [a, b] = ip.split('.').map(Number);
@@ -249,14 +283,17 @@ function createChecker(store) {
         await new Promise((resolve) => setTimeout(resolve, 500 * (2 ** attempt)));
       }
       const saved = store.saveCheck(page, result);
-      if (saved.snapshot && saved.snapshot.version > 1 && process.env.OPENAI_API_KEY) {
-        try {
-          const previous = store.getSnapshot(page.id, saved.snapshot.version - 1);
-          const summary = await summarizeChange(previous?.text || '', result.text || '');
-          if (summary) { store.updateSnapshotSummary(saved.snapshot.id, summary); saved.snapshot.summary = summary; }
-        } catch (error) { console.error(`Change summary failed for page ${page.id}: ${error.message}`); }
+      const previous = saved.snapshot && saved.snapshot.version > 1 ? store.getSnapshot(page.id, saved.snapshot.version - 1) : null;
+      if (saved.snapshot && saved.snapshot.version > 1) {
+        let summary = localChangeSummary(previous?.text || '', result.text || '');
+        if (process.env.OPENAI_API_KEY) {
+          try { summary = await summarizeChange(previous?.text || '', result.text || '') || summary; }
+          catch (error) { console.error(`Change summary failed for page ${page.id}: ${error.message}`); }
+        }
+        store.updateSnapshotSummary(saved.snapshot.id, summary);
+        saved.snapshot.summary = summary;
       }
-      const keywordsMatch = !page.keywords.length || page.keywords.some((word) => result.text?.toLowerCase().includes(word.toLowerCase()));
+      const keywordsMatch = changedTextMatchesKeywords(previous?.text || '', result.text || '', page.keywords);
       if (saved.snapshot && page.last_hash && keywordsMatch) await deliverAlerts(page, { ...saved.snapshot, pageId: page.id, created_at: saved.snapshot.createdAt });
       return { ...result, summary: saved.snapshot?.summary || '', changed: Boolean(saved.snapshot), version: saved.snapshot?.version || null, checkedAt: new Date().toISOString() };
     })().finally(() => inflight.delete(id));
@@ -308,9 +345,7 @@ function createChecker(store) {
   async function compare(id, a, b) {
     const left = store.getSnapshot(id, a); const right = store.getSnapshot(id, b);
     if (!left || !right) throw Object.assign(new Error('Choose two available versions.'), { status: 404 });
-    const oldText = left.text || ''; const newText = right.text || '';
-    const prefix = commonPrefix(oldText, newText); const suffix = commonSuffix(oldText.slice(prefix.length), newText.slice(prefix.length));
-    const diff = { removed: oldText.slice(prefix.length, oldText.length - suffix.length), added: newText.slice(prefix.length, newText.length - suffix.length) };
+    const diff = textChanges(left.text || '', right.text || '');
     const oldPng = PNG.sync.read(left.screenshot); const newPng = PNG.sync.read(right.screenshot);
     const width = Math.max(oldPng.width, newPng.width); const height = Math.max(oldPng.height, newPng.height);
     const side = new PNG({ width: width * 2, height });
@@ -338,4 +373,4 @@ function createChecker(store) {
 }
 function commonPrefix(a, b) { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return a.slice(0, i); }
 function commonSuffix(a, b) { let i = 0; while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++; return a.slice(a.length - i); }
-module.exports = { createChecker, normalizeText, parseMetrics, assertPublicHost, isPrivateIp, summarizeChange };
+module.exports = { createChecker, normalizeText, parseMetrics, assertPublicHost, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords };
