@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f4f4f0"><title>Changewatch — Website Change Detector</title>
+  <link rel="stylesheet" href="/css/styles.css"><link rel="stylesheet" href="/css/charts.css"><link rel="stylesheet" href="/css/account.css"><script src="/js/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/"><span class="brand-mark">CW</span><span>changewatch</span></a><div class="top-actions"><span class="service-state"><i></i> Scheduler active</span><button class="button primary" id="add-page">＋ Add a page</button><span id="account-email" class="account-email"></span><button id="signout" class="button secondary">Sign out</button></div></header>
+  <main class="shell">
+    <section class="intro"><div><p class="eyebrow">PUBLIC WEB MONITORING</p><h1>Know when a page<br><em>really changes.</em></h1><p class="intro-copy">Watch public pages for meaningful updates. Noise gets filtered out, and every change comes with a clear before and after.</p></div><div class="stats" id="stats"></div></section>
+    <section class="toolbar"><div><h2>Your watchlist</h2><p id="watch-count">Scheduled checks run every 15 minutes to 24 hours.</p></div><label class="search"><span>⌕</span><input id="search" type="search" placeholder="Find a page" aria-label="Find a page"></label></section>
+    <section id="page-list" class="page-list" aria-live="polite"></section>
+    <section id="empty" class="empty" hidden><div class="empty-icon">◉</div><h3>Your watchlist starts here</h3><p>Add a public URL and choose how often to check it. We’ll keep the page versions and show you what changed.</p><button class="button primary" id="empty-add">Add your first page</button></section>
+    <footer><span>Changewatch checks publicly accessible pages only.</span><a href="/api/stats">Service status</a></footer>
+  </main>
+
+  <dialog id="add-dialog" class="dialog"><form id="add-form" method="dialog"><div class="dialog-head"><div><p class="eyebrow">NEW MONITOR</p><h2>Add a page to watch</h2></div><button type="button" class="icon-button" data-close aria-label="Close">×</button></div>
+    <label>Page name<input name="name" maxlength="100" placeholder="Product updates" required></label>
+    <label>Public page URL<input name="url" type="url" placeholder="https://example.com/updates" required></label>
+    <div class="form-row"><label>Check interval<select name="intervalMinutes"><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60" selected>Every hour</option><option value="360">Every 6 hours</option><option value="720">Every 12 hours</option><option value="1440">Every 24 hours</option></select></label><label>Sensitivity<select name="sensitivity"><option value="low">Low · ignore small changes</option><option value="medium" selected>Medium · balanced</option><option value="high">High · catch small changes</option></select></label></div>
+    <label>Watch regions <span class="field-note">Optional CSS selectors, comma separated</span><input name="watchSelectors" placeholder="main, .release-notes"></label>
+    <label>Ignore regions <span class="field-note">Optional CSS selectors to exclude</span><input name="ignoreSelectors" placeholder=".cookie-banner, #promo"></label>
+    <details class="advanced"><summary>Alerts and keyword filter</summary><label>Only alert for these words <span class="field-note">Optional · comma separated</span><input name="keywords" placeholder="security, pricing, release"></label><label>Email alert address <span class="field-note">Requires SMTP settings on the server</span><input name="alertEmail" type="email" placeholder="you@example.com"></label><label class="check-label"><input name="discordEnabled" type="checkbox"> Send alerts to the configured Discord webhook</label><label>Telegram chat ID <span class="field-note">Requires TELEGRAM_BOT_TOKEN on the server</span><input name="telegramChatId" placeholder="123456789"></label><label class="check-label"><input name="dailyDigest" type="checkbox"> Include this page in a daily digest</label></details>
+    <p id="form-error" class="error" role="alert"></p><div class="dialog-actions"><button type="button" class="button secondary" data-close>Cancel</button><button class="button primary" type="submit">Start watching</button></div>
+  </form></dialog>
+
+  <dialog id="detail-dialog" class="dialog detail-dialog"><div id="detail-content"></div></dialog>
+  <dialog id="picker-dialog" class="dialog picker-dialog"><div class="dialog-head"><div><p class="eyebrow">VISUAL PICKER</p><h2>Choose a page region</h2><p>Click an element in the live preview to save its CSS selector.</p><label>Selection mode<select id="picker-mode"><option value="watch">Watch this region</option><option value="ignore">Ignore this region</option></select></label></div><button class="icon-button" data-close aria-label="Close">×</button></div><div id="picker-stage" class="picker-stage"><p>Opening a safe preview…</p></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body></html>

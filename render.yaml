@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: changewatch
+    runtime: node
+    region: ohio
+    plan: standard
+    buildCommand: npm ci --omit=dev && npx playwright install --with-deps chromium
+    startCommand: npm start
+    healthCheckPath: /healthz
+    disk:
+      name: changewatch-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: '24.21.0'
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+

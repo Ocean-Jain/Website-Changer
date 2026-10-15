@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f4f3ee">
+  <title>Sign in · Changewatch</title><link rel="stylesheet" href="/css/styles.css"><link rel="stylesheet" href="/css/login.css"><script src="/js/login.js" defer></script>
+</head>
+<body class="login-page">
+  <header class="topbar"><a class="brand" href="/"><span class="brand-mark">CW</span><span>changewatch</span></a><span class="login-header-note">A quiet record of what changed.</span></header>
+  <main class="login-layout">
+    <section class="login-note"><p class="eyebrow">WATCH THE WEB WITH CONTEXT</p><h1>Keep an eye on<br><em>the important bits.</em></h1><p>Save meaningful versions of public pages, filter the noise, and compare changes when you need to.</p><div class="note-rule"></div><p class="small-note">One account keeps your watchlist and page history private to you.</p></section>
+    <section class="auth-card" aria-labelledby="auth-title">
+      <p class="eyebrow">YOUR WORKSPACE</p><h2 id="auth-title">Welcome back</h2><p id="auth-intro" class="auth-intro">Sign in to see your watchlist.</p>
+      <div class="auth-tabs" role="tablist"><button type="button" class="active" id="tab-signin" role="tab" aria-selected="true">Sign in</button><button type="button" id="tab-signup" role="tab" aria-selected="false">Create account</button></div>
+      <form id="auth-form" novalidate>
+        <label>Email address<input name="email" type="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128" placeholder="At least 12 characters" required></label>
+        <label id="confirm-wrap" hidden>Confirm password<input name="confirmPassword" type="password" autocomplete="new-password" minlength="12" maxlength="128" placeholder="Type it again"></label>
+        <p id="auth-error" class="error" role="alert" aria-live="polite"></p>
+        <button id="submit-auth" class="button primary auth-submit" type="submit">Sign in</button>
+      </form>
+      <p class="auth-footnote">Use a password you don’t use elsewhere. We store a one-way password hash.</p>
+    </section>
+  </main>
+  <footer class="login-footer"><span>Changewatch · Public pages only</span><a href="/healthz">Service status</a></footer>
+</body></html>

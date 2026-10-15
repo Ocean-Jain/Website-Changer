@@ -1,0 +1,2 @@
+.account-email{max-width:175px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#728079;font-size:11px}
+@media(max-width:760px){.top-actions{gap:8px}.account-email{max-width:100px}.top-actions .button{padding:9px 10px;font-size:11px}}
