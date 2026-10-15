@@ -1,3 +1,5 @@
+Link to the deployed website:website-change-detector.onrender.com
+
 # Changewatch
 
 Changewatch watches publicly accessible web pages, filters routine noise, and keeps a timeline of meaningful changes. Each account has its own private watchlist and saved history.
@@ -20,13 +22,6 @@ The root `render.yaml` is a Blueprint. Push the repository to a Git provider, se
 
 The Blueprint uses a paid Standard web instance and a 1 GB persistent disk mounted at `/var/data`. Chromium needs memory to render pages, and SQLite snapshots need persistent storage to survive deploys. Render Free web services do not have persistent disks, so their local files are lost on restart.
 
-## Round 1 submission checklist
-
-- **Project type:** Website Change Detector (Web Development).
-- **Public deployed website:** Pending deployment. Replace this line with the public Render URL before submitting: `https://<your-service>.onrender.com`.
-- **Test scripts:** Run `npm test` for the full test suite or `npm run test:detector` for the Website Change Detector checks in `test/test.js`.
-- **Description and setup:** The project summary and local setup commands are at the top of this README.
-- **Public access:** After deployment, open the public URL while signed out and confirm that the sign-in/sign-up page loads. `/healthz` should return `ok`. Users need to create an account to access their private watchlists.
 
 ## Detection and alerts
 
@@ -53,7 +48,7 @@ The Blueprint uses a paid Standard web instance and a 1 GB persistent disk mount
 - Secrets for SMTP, Discord, Telegram, and OpenAI belong in the hosting provider's environment settings, not in source control.
 - Set `APP_URL` to the service's public base URL when self-hosting so change alerts and digests include working comparison links. Render's `RENDER_EXTERNAL_HOSTNAME` is used automatically.
 - `GET /healthz` is public for service health checks. Dashboard APIs require a signed-in account; RSS feeds require their per-page token.
-- Run all unit tests with `npm test`; run the detector-specific suite with `npm run test:detector`.
+- Run unit tests with `npm test`.
 
 ## Project layout
 
