@@ -7,9 +7,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const dns = require('node:dns').promises;
 const { DatabaseSync } = require('node:sqlite');
 const { createStore, validPublicUrl } = require('../src/store');
-const { normalizeText, parseMetrics, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords, extractStaticText, extractFeedText, createChecker } = require('../src/checker');
+const { normalizeText, parseMetrics, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords, extractStaticText, extractFeedText, staticSourceUrl, createChecker } = require('../src/checker');
 
 async function withStore(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'changewatch-'));
@@ -178,6 +179,31 @@ test('RSS and Atom feed entries are extracted as readable monitored content', ()
   assert.equal(extractFeedText(rss),'Roadmap update\nNew release & fixes');
   assert.equal(extractFeedText(atom),'Service notice\nMaintenance tonight');
 });
+
+test('Google News homepage monitors are routed to its public top stories RSS feed', () => {
+  assert.equal(staticSourceUrl('https://news.google.com/'),'https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en');
+  assert.equal(staticSourceUrl('https://news.google.com/rss/search?q=climate'),'https://news.google.com/rss/search?q=climate');
+  assert.equal(staticSourceUrl('https://example.com/'),'https://example.com/');
+});
+
+test('a saved Google News homepage check reads the RSS response without Chromium', () => withStore(async (store) => {
+  const oldMode=process.env.CHANGEWATCH_RENDER_MODE; const oldFetch=global.fetch; const oldLookup=dns.lookup;
+  process.env.CHANGEWATCH_RENDER_MODE='static';
+  dns.lookup=async () => [{address:'8.8.8.8',family:4}];
+  global.fetch=async (url) => {
+    assert.equal(String(url),'https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en');
+    return new Response('<?xml version="1.0"?><rss><channel><item><title>Top story</title><description>Public news feed item</description></item></channel></rss>', {status:200,headers:{'content-type':'application/rss+xml'}});
+  };
+  const page=store.addPage({url:'https://news.google.com/',name:'News',intervalMinutes:60});
+  const checker=createChecker(store);
+  try {
+    const result=await checker.check(page.id);
+    assert.equal(result.status,'ok'); assert.match(result.text,/Top story/); assert.equal(store.listSnapshots(page.id).length,1);
+  } finally {
+    await checker.close(); global.fetch=oldFetch; dns.lookup=oldLookup;
+    if(oldMode===undefined) delete process.env.CHANGEWATCH_RENDER_MODE; else process.env.CHANGEWATCH_RENDER_MODE=oldMode;
+  }
+}));
 
 test('static mode accepts RSS feeds and honors Retry-After after HTTP 429', () => withStore(async (store) => {
   const oldMode=process.env.CHANGEWATCH_RENDER_MODE; const oldFetch=global.fetch;

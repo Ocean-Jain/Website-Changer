@@ -259,6 +259,14 @@ function retryAfterSeconds(value, now=Date.now()) {
   const at=Date.parse(value);
   return Number.isFinite(at) ? Math.max(0,Math.ceil((at-now)/1000)) : 0;
 }
+function staticSourceUrl(urlText) {
+  const target=new URL(urlText);
+  if (target.hostname.toLowerCase()==='news.google.com' && target.pathname==='/' && !target.search && !target.hash) {
+    target.pathname='/rss';
+    target.search='?hl=en-US&gl=US&ceid=US:en';
+  }
+  return target.href;
+}
 async function fetchPublicHtml(urlText) {
   let target = new URL(urlText);
   for (let redirect = 0; redirect <= 5; redirect++) {
@@ -288,7 +296,7 @@ async function responseTextLimited(response, maxBytes=5_000_000) {
 async function fetchStaticPage(page, defaultIgnore) {
   const start=Date.now();
   try {
-    const response=await fetchPublicHtml(page.url); const httpStatus=response.status;
+    const response=await fetchPublicHtml(staticSourceUrl(page.url)); const httpStatus=response.status;
     if (httpStatus === 401 || httpStatus === 403 || httpStatus === 429) {
       const retry= httpStatus===429 ? retryAfterSeconds(response.headers.get('retry-after')) : 0;
       const wait=retry ? ` The site requested a ${Math.ceil(retry/60)} minute cooldown; the next check is deferred accordingly.` : '';
@@ -574,4 +582,4 @@ function createChecker(store) {
 }
 function commonPrefix(a, b) { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return a.slice(0, i); }
 function commonSuffix(a, b) { let i = 0; while (i < a.length && i < b.length && a[a.length - 1 - i] === b[b.length - 1 - i]) i++; return a.slice(a.length - i); }
-module.exports = { createChecker, normalizeText, parseMetrics, assertPublicHost, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords, extractStaticText, extractFeedText, retryAfterSeconds, fetchStaticPage };
+module.exports = { createChecker, normalizeText, parseMetrics, assertPublicHost, isPrivateIp, summarizeChange, localChangeSummary, changedTextMatchesKeywords, extractStaticText, extractFeedText, retryAfterSeconds, staticSourceUrl, fetchStaticPage };

@@ -22,7 +22,7 @@ The root `render.yaml` is a Blueprint. Push the repository to a Git provider, se
 
 The Blueprint uses a paid Standard web instance and a 1 GB persistent disk mounted at `/var/data`. SQLite accounts, snapshots, and history use that disk so they survive deploys. Render Free web services do not have persistent disks, so their local files are lost on restart.
 
-Render uses `CHANGEWATCH_RENDER_MODE=static`: scheduled checks fetch public server-rendered HTML or RSS/Atom feeds using Node's built-in `fetch`, with no Chromium installation or launch required. This avoids browser-binary cache issues in the Render runtime. Pages that require client-side JavaScript may not expose their content in static mode; screenshot diffs and the visual picker are unavailable there, while text snapshots, text comparisons, and alerts continue to work. For browser-rendered pages, run outside static mode on a host where Playwright Chromium is installed.
+Render uses `CHANGEWATCH_RENDER_MODE=static`: scheduled checks fetch public server-rendered HTML or RSS/Atom feeds using Node's built-in `fetch`, with no Chromium installation or launch required. A monitor saved as the Google News homepage is automatically read through its public top-stories RSS endpoint in this mode. This uses Google's feed format rather than repeatedly requesting the blocked HTML homepage. Pages that require client-side JavaScript may not expose their content in static mode; screenshot diffs and the visual picker are unavailable there, while text snapshots, text comparisons, and alerts continue to work. For browser-rendered pages, run outside static mode on a host where Playwright Chromium is installed.
 
 
 ## Detection and alerts
